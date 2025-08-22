@@ -5,6 +5,7 @@ from typing import List, AsyncGenerator, Dict, Any, Optional
 import json
 import base64
 import asyncio
+import time
 from Model import ChatMessage
 from agent import agent, AgentManager
 from fastapi import UploadFile
@@ -140,22 +141,39 @@ class ChatService:
         if not file_attachment:
             return None, None
             
-        file_name = file_attachment.filename
+        file_name = file_attachment.filename or "unknown_file"
         file_content = None
         
         try:
-            # Đọc toàn bộ file content vào memory một lần
-            file_bytes = await file_attachment.read()
+            # Luôn cố gắng reset file pointer về đầu file và đọc ngay
+            try:
+                await file_attachment.seek(0)
+            except Exception:
+                pass
+            
+            try:
+                file_bytes = await file_attachment.read()
+            except Exception as read_error:
+                # Thử seek rồi đọc lại một lần
+                try:
+                    await file_attachment.seek(0)
+                    file_bytes = await file_attachment.read()
+                except Exception:
+                    file_content = f"[ERROR READING FILE: {file_name}] - {str(read_error)}"
+                    return file_name, file_content
             
             # Đảm bảo file_bytes không rỗng
-            if not file_bytes:
+            if not file_bytes or len(file_bytes) == 0:
                 file_content = f"[EMPTY FILE: {file_name}]"
             else:
                 # Nếu là file ảnh
                 if file_attachment.content_type and file_attachment.content_type.startswith('image/'):
-                    # Tạo base64 string từ bytes
-                    base64_string = base64.b64encode(file_bytes).decode('utf-8')
-                    file_content = f"[IMAGE: {file_name}] - Size: {len(file_bytes)} bytes"
+                    # Tạo base64 string từ bytes cho future use
+                    try:
+                        base64_string = base64.b64encode(file_bytes).decode('utf-8')
+                        file_content = f"[IMAGE: {file_name}] - Size: {len(file_bytes)} bytes, Content-Type: {file_attachment.content_type}"
+                    except Exception as b64_error:
+                        file_content = f"[IMAGE PROCESSING ERROR: {file_name}] - {str(b64_error)}"
                 else:
                     # Nếu là text file, đọc content
                     try:
@@ -164,10 +182,22 @@ class ChatService:
                         if len(file_content) > 2000:
                             file_content = file_content[:2000] + "... (truncated)"
                     except UnicodeDecodeError:
-                        file_content = f"[BINARY FILE: {file_name}] - Size: {len(file_bytes)} bytes"
+                        # Thử với các encoding khác
+                        try:
+                            file_content = file_bytes.decode('latin-1')
+                            if len(file_content) > 2000:
+                                file_content = file_content[:2000] + "... (truncated)"
+                        except Exception:
+                            file_content = f"[BINARY FILE: {file_name}] - Size: {len(file_bytes)} bytes"
                         
         except Exception as file_error:
-            file_content = f"[ERROR READING FILE: {file_name}] - {str(file_error)}"
+            # Log chi tiết lỗi để debug
+            error_details = f"Type: {type(file_error).__name__}, Message: {str(file_error)}"
+            file_content = f"[CRITICAL ERROR READING FILE: {file_name}] - {error_details}"
+            
+        finally:
+            # Không đóng file tại đây để tránh ảnh hưởng tới lifecycle của framework
+            pass
             
         return file_name, file_content
 
@@ -176,7 +206,11 @@ class ChatService:
         conversation_id: Optional[str],
         title: str,
         pbi_requirement: str,
-        file_attachment: Optional[UploadFile] = None
+        file_attachment: Optional[UploadFile] = None,
+        preloaded_file_name: Optional[str] = None,
+        preloaded_file_content: Optional[str] = None,
+        preloaded_base64_data: Optional[str] = None,
+        preloaded_mime_type: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         Xử lý agent testcase request với streaming response
@@ -191,14 +225,18 @@ class ChatService:
             str: Server-Sent Events formatted strings
         """
         try:
-            # Xử lý file attachment trước khi bắt đầu streaming
-            file_name, file_content = await ChatService._process_file_attachment(file_attachment)
+            # Ưu tiên dùng nội dung file đã được preload ở endpoint
+            if preloaded_file_name is not None or preloaded_file_content is not None:
+                file_name, file_content = preloaded_file_name, preloaded_file_content
+            else:
+                # Nếu chưa preload, xử lý ngay đầu stream
+                file_name, file_content = await ChatService._process_file_attachment(file_attachment)
             
-            # Tạo message với context đầy đủ
+            # Tạo message với context đầy đủ (không truyền file content)
             message_content = AgentManager.create_message_with_context(
                 title=title,
                 pbi_requirement=pbi_requirement,
-                file_content=file_content,
+                has_file=file_content is not None,
                 file_name=file_name
             )
             
@@ -207,13 +245,46 @@ class ChatService:
                 db_manager.add_message(conversation_id, "user", message_content)
             
             # Tạo config cho agent với thread_id
-            config = {}
-            if conversation_id:
-                config["configurable"] = {"thread_id": conversation_id}
+            # Luôn cần thread_id để sử dụng memory checkpointer
+            thread_id = conversation_id or f"temp_{int(time.time())}"
+            config = {"configurable": {"thread_id": thread_id}}
+            
+            # Tạo message content cho agent (multimodal nếu có ảnh)
+            agent_message = {"role": "user"}
+            
+            # Kiểm tra nếu có file ảnh thì tạo multimodal message
+            if (file_content and file_name and 
+                (file_content.startswith("[IMAGE:") or 
+                 (preloaded_file_content and preloaded_file_content.startswith("[IMAGE:")))):
+                
+                # Sử dụng preloaded base64 data và mime type
+                base64_data = preloaded_base64_data
+                mime_type = preloaded_mime_type or "image/jpeg"  # default
+                
+                # Nếu có base64 data thì tạo multimodal message
+                if base64_data:
+                    agent_message["content"] = [
+                        {
+                            "type": "text",
+                            "text": message_content,
+                        },
+                        {
+                            "type": "image",
+                            "source_type": "base64",
+                            "data": base64_data,
+                            "mime_type": mime_type,
+                        },
+                    ]
+                else:
+                    # Fallback to text only nếu không lấy được base64
+                    agent_message["content"] = message_content
+            else:
+                # Message text thông thường nếu không có ảnh
+                agent_message["content"] = message_content
             
             # Gọi agent với streaming và thread_id
             response = agent.astream(
-                {"messages": [{"role": "user", "content": message_content}]},
+                {"messages": [agent_message]},
                 config=config
             )
             

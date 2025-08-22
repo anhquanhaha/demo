@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import Dict, List, Optional
 import uvicorn
+import base64
 from Model import Item, ItemCreate, ChatMessage, ChatRequest, AgentTestcaseRequest, RequestCreate, RequestResponse, MessageResponse
 from Service import ChatService
 from database import db_manager
@@ -93,13 +94,59 @@ async def agent_testcase(
         StreamingResponse: Server-Sent Events stream
     """
     try:
-        # Trả về streaming response
+        # Preload nội dung file (nếu có) để tránh lỗi stream bị đóng khi streaming response
+        preloaded_file_name = None
+        preloaded_file_content = None
+        preloaded_base64_data = None
+        preloaded_mime_type = None
+        
+        if file_attachment is not None:
+            try:
+                try:
+                    await file_attachment.seek(0)
+                except Exception:
+                    pass
+                file_bytes = await file_attachment.read()
+                preloaded_file_name = file_attachment.filename or "unknown_file"
+                
+                if not file_bytes or len(file_bytes) == 0:
+                    preloaded_file_content = f"[EMPTY FILE: {preloaded_file_name}]"
+                else:
+                    if file_attachment.content_type and file_attachment.content_type.startswith('image/'):
+                        # Cho file ảnh: tạo base64 data và content description
+                        preloaded_base64_data = base64.b64encode(file_bytes).decode('utf-8')
+                        preloaded_mime_type = file_attachment.content_type
+                        preloaded_file_content = f"[IMAGE: {preloaded_file_name}] - Size: {len(file_bytes)} bytes, Content-Type: {file_attachment.content_type}"
+                    else:
+                        # Cho file text: decode nội dung
+                        try:
+                            text_content = file_bytes.decode('utf-8')
+                            if len(text_content) > 2000:
+                                text_content = text_content[:2000] + "... (truncated)"
+                            preloaded_file_content = text_content
+                        except UnicodeDecodeError:
+                            try:
+                                text_content = file_bytes.decode('latin-1')
+                                if len(text_content) > 2000:
+                                    text_content = text_content[:2000] + "... (truncated)"
+                                preloaded_file_content = text_content
+                            except Exception:
+                                preloaded_file_content = f"[BINARY FILE: {preloaded_file_name}] - Size: {len(file_bytes)} bytes"
+            except Exception as preload_err:
+                preloaded_file_name = file_attachment.filename or "unknown_file"
+                preloaded_file_content = f"[ERROR READING FILE: {preloaded_file_name}] - {str(preload_err)}"
+
+        # Trả về streaming response với nội dung file đã preload
         return StreamingResponse(
             ChatService.process_agent_testcase_stream(
                 conversation_id=conversation_id,
                 title=title,
                 pbi_requirement=pbi_requirement,
-                file_attachment=file_attachment
+                file_attachment=None,
+                preloaded_file_name=preloaded_file_name,
+                preloaded_file_content=preloaded_file_content,
+                preloaded_base64_data=preloaded_base64_data,
+                preloaded_mime_type=preloaded_mime_type
             ),
             media_type="text/event-stream",
             headers={

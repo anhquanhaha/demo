@@ -46,7 +46,7 @@ class AgentManager:
     def create_message_with_context(
         title: str,
         pbi_requirement: str,
-        file_content: Optional[str] = None,
+        has_file: bool = False,
         file_name: Optional[str] = None
     ) -> str:
         """Tạo message với context đầy đủ cho agent"""
@@ -56,9 +56,8 @@ class AgentManager:
             f"**Yêu cầu PBI:** {pbi_requirement}"
         ]
         
-        if file_content and file_name:
+        if has_file and file_name:
             message_parts.append(f"**File đính kèm:** {file_name}")
-            message_parts.append(f"**Nội dung file:** {file_content[:1000]}..." if len(file_content) > 1000 else f"**Nội dung file:** {file_content}")
         
         message_parts.append("\nHãy phân tích yêu cầu này và đưa ra nhận xét, gợi ý cải thiện hoặc câu hỏi làm rõ.")
         
