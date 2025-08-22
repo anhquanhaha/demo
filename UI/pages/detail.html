@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Case AI Agent - Chi tiết yêu cầu</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Test Case AI Agent</h1>
+            <p id="headerSubtitle">Chi tiết yêu cầu</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="nav-bar">
+                <div class="nav-title">
+                    <a href="../index.html" class="btn btn-secondary">← Quay lại</a>
+                    <span id="requestTitle">Đang tải...</span>
+                </div>
+                <div class="nav-actions">
+                    <button class="btn btn-success" onclick="sendToAgent()" id="sendToAgentBtn">
+                        🚀 Gửi cho AI Agent
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshMessages()">
+                        🔄 Làm mới
+                    </button>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: 600px;">
+                <!-- Request Info Panel -->
+                <div style="padding: 30px; background: #f8f9fa; border-right: 1px solid #e9ecef;">
+                    <h3 style="margin-bottom: 20px; color: #333;">📋 Thông tin yêu cầu</h3>
+                    
+                    <div id="requestInfo">
+                        <!-- Request info will be loaded here -->
+                    </div>
+                    
+                    <div style="margin-top: 30px;">
+                        <h4 style="margin-bottom: 15px; color: #333;">📎 Gửi file đính kèm</h4>
+                        <div class="form-group">
+                            <div class="file-input-wrapper">
+                                <div class="file-input">
+                                    <input type="file" id="fileAttachment" accept="image/*,.txt,.md,.json,.xml">
+                                    <span id="fileLabel">📎 Chọn file để tải lên</span>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted">Hỗ trợ: Ảnh, Text, Markdown, JSON, XML</small>
+                    </div>
+                </div>
+                
+                <!-- Chat Panel -->
+                <div style="padding: 30px; background: #ffffff; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="color: #333;">💬 Cuộc trò chuyện với AI</h3>
+                        <div>
+                            <span class="status-indicator status-idle" id="statusIndicator"></span>
+                            <span id="statusText">Sẵn sàng</span>
+                        </div>
+                    </div>
+                    
+                    <div id="messagesContainer" style="flex: 1; max-height: 500px; overflow-y: auto; border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; background: #f8f9fa;">
+                        <!-- Messages will be loaded here -->
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-primary w-100" onclick="exportConversation()">
+                            📄 Xuất cuộc trò chuyện
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/utils.js"></script>
+    <script>
+        let currentRequest = null;
+        let currentMessages = [];
+        let isStreaming = false;
+
+        // Get conversation ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const conversationId = urlParams.get('id');
+
+        if (!conversationId) {
+            showToast('Không tìm thấy ID yêu cầu', 'error');
+            setTimeout(() => {
+                window.location.href = '../index.html';
+            }, 2000);
+        }
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRequestData();
+            setupFileInput();
+        });
+
+        /**
+         * Load request data and messages
+         */
+        async function loadRequestData() {
+            try {
+                // Load request info
+                currentRequest = await apiClient.getRequest(conversationId);
+                displayRequestInfo(currentRequest);
+                
+                // Load messages
+                await loadMessages();
+                
+            } catch (error) {
+                console.error('Error loading request data:', error);
+                showToast('Có lỗi khi tải dữ liệu: ' + error.message, 'error');
+            }
+        }
+
+        /**
+         * Display request information
+         */
+        function displayRequestInfo(request) {
+            document.getElementById('requestTitle').textContent = request.title;
+            document.getElementById('headerSubtitle').textContent = `Chi tiết yêu cầu: ${request.title}`;
+            
+            const requestInfo = document.getElementById('requestInfo');
+            requestInfo.innerHTML = `
+                <div class="mb-3">
+                    <strong>Tiêu đề:</strong><br>
+                    <div style="background: white; padding: 10px; border-radius: 5px; margin-top: 5px;">
+                        ${request.title}
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Conversation ID:</strong><br>
+                    <div style="background: white; padding: 10px; border-radius: 5px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">
+                        ${request.conversation_id}
+                        <button class="btn btn-secondary btn-sm" style="margin-left: 10px;" 
+                                onclick="copyToClipboard('${request.conversation_id}')" title="Sao chép ID">
+                            📋
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Yêu cầu PBI:</strong><br>
+                    <div style="background: white; padding: 15px; border-radius: 5px; margin-top: 5px; line-height: 1.6; max-height: 200px; overflow-y: auto;">
+                        ${request.pbi_requirement.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.9em; color: #666;">
+                    <div>
+                        <strong>Tạo:</strong><br>
+                        ${formatDateTime(request.created_at)}
+                    </div>
+                    <div>
+                        <strong>Cập nhật:</strong><br>
+                        ${formatDateTime(request.updated_at)}
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Load messages from API
+         */
+        async function loadMessages() {
+            try {
+                currentMessages = await apiClient.getMessages(conversationId);
+                displayMessages(currentMessages);
+            } catch (error) {
+                console.error('Error loading messages:', error);
+                const container = document.getElementById('messagesContainer');
+                showError(container, 'Có lỗi khi tải tin nhắn: ' + error.message);
+            }
+        }
+
+        /**
+         * Display messages in chat container
+         */
+        function displayMessages(messages) {
+            const container = document.getElementById('messagesContainer');
+            
+            if (messages.length === 0) {
+                showEmptyState(
+                    container,
+                    'Chưa có tin nhắn nào',
+                    'Nhấn "Gửi cho AI Agent" để bắt đầu cuộc trò chuyện',
+                    {
+                        text: '🚀 Gửi cho AI Agent',
+                        onclick: 'sendToAgent()'
+                    }
+                );
+                return;
+            }
+
+            container.innerHTML = messages.map(message => `
+                <div class="message ${message.role}">
+                    <div class="message-header">
+                        <span class="message-role">
+                            ${message.role === 'user' ? '👤 Người dùng' : '🤖 AI Agent'}
+                        </span>
+                        <span class="message-time">${formatDateTime(message.created_at)}</span>
+                    </div>
+                    <div class="message-content">
+                        ${message.content.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+            `).join('');
+
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        /**
+         * Setup file input handler
+         */
+        function setupFileInput() {
+            const fileInput = document.getElementById('fileAttachment');
+            const fileLabel = document.getElementById('fileLabel');
+
+            fileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    fileLabel.textContent = `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+                } else {
+                    fileLabel.textContent = '📎 Chọn file để tải lên';
+                }
+            });
+        }
+
+        /**
+         * Send request to AI Agent
+         */
+        async function sendToAgent() {
+            if (isStreaming) {
+                showToast('Đang xử lý yêu cầu trước đó...', 'warning');
+                return;
+            }
+
+            if (!currentRequest) {
+                showToast('Chưa tải được thông tin yêu cầu', 'error');
+                return;
+            }
+
+            isStreaming = true;
+            updateStatus('connecting', 'Đang kết nối...');
+            
+            const sendBtn = document.getElementById('sendToAgentBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '⏳ Đang xử lý...';
+
+            // Get file attachment
+            const fileInput = document.getElementById('fileAttachment');
+            const fileAttachment = fileInput.files[0] || null;
+
+            try {
+                const response = await apiClient.sendToAgent(
+                    conversationId,
+                    currentRequest.title,
+                    currentRequest.pbi_requirement,
+                    fileAttachment
+                );
+
+                updateStatus('streaming', 'Đang nhận dữ liệu...');
+                
+                // Clear file input
+                fileInput.value = '';
+                document.getElementById('fileLabel').textContent = '📎 Chọn file để tải lên';
+
+                // Process streaming response
+                await processStreamingResponse(response);
+
+            } catch (error) {
+                console.error('Error sending to agent:', error);
+                updateStatus('error', 'Có lỗi xảy ra');
+                addStreamingMessage('error', `❌ Lỗi: ${error.message}`);
+            } finally {
+                isStreaming = false;
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '🚀 Gửi cho AI Agent';
+            }
+        }
+
+        /**
+         * Process streaming response from agent
+         */
+        async function processStreamingResponse(response) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let currentMessageContent = '';
+
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    
+                    if (done) {
+                        updateStatus('complete', 'Hoàn thành');
+                        break;
+                    }
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                handleStreamData(data);
+                            } catch (e) {
+                                // Ignore JSON parse errors for incomplete chunks
+                            }
+                        }
+                    }
+                }
+            } finally {
+                // Reload messages to get the saved version
+                setTimeout(() => {
+                    loadMessages();
+                }, 1000);
+            }
+        }
+
+        /**
+         * Handle streaming data
+         */
+        function handleStreamData(data) {
+            switch (data.type) {
+                case 'chunk':
+                    appendToStreamingMessage(data.content);
+                    break;
+                    
+                case 'message':
+                    addStreamingMessage('assistant', data.content);
+                    break;
+                    
+                case 'end':
+                    updateStatus('complete', 'Hoàn thành');
+                    break;
+                    
+                case 'error':
+                    addStreamingMessage('error', `❌ Lỗi: ${data.message}`);
+                    updateStatus('error', 'Có lỗi xảy ra');
+                    break;
+            }
+        }
+
+        let currentStreamingMessage = null;
+
+        /**
+         * Add streaming message to chat
+         */
+        function addStreamingMessage(role, content) {
+            const container = document.getElementById('messagesContainer');
+            
+            // Remove empty state if exists
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <span class="message-role">
+                        ${role === 'user' ? '👤 Người dùng' : role === 'assistant' ? '🤖 AI Agent' : '⚠️ Hệ thống'}
+                    </span>
+                    <span class="message-time">${formatDateTime(new Date().toISOString())}</span>
+                </div>
+                <div class="message-content">${content}</div>
+            `;
+            
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            if (role === 'assistant') {
+                currentStreamingMessage = messageDiv.querySelector('.message-content');
+            }
+        }
+
+        /**
+         * Append content to current streaming message
+         */
+        function appendToStreamingMessage(content) {
+            if (!currentStreamingMessage) {
+                // Create new streaming message
+                addStreamingMessage('assistant', content);
+            } else {
+                currentStreamingMessage.textContent += content;
+                const container = document.getElementById('messagesContainer');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        /**
+         * Update status indicator
+         */
+        function updateStatus(status, message) {
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+            
+            indicator.className = `status-indicator status-${status}`;
+            text.textContent = message;
+        }
+
+        /**
+         * Refresh messages
+         */
+        async function refreshMessages() {
+            await loadMessages();
+            showToast('Tin nhắn đã được làm mới', 'success');
+        }
+
+        /**
+         * Export conversation to file
+         */
+        function exportConversation() {
+            if (!currentRequest || currentMessages.length === 0) {
+                showToast('Không có dữ liệu để xuất', 'warning');
+                return;
+            }
+
+            let content = `# ${currentRequest.title}\n\n`;
+            content += `**Conversation ID:** ${currentRequest.conversation_id}\n`;
+            content += `**Tạo:** ${formatDateTime(currentRequest.created_at)}\n`;
+            content += `**Cập nhật:** ${formatDateTime(currentRequest.updated_at)}\n\n`;
+            content += `## Yêu cầu PBI\n\n${currentRequest.pbi_requirement}\n\n`;
+            content += `## Cuộc trò chuyện\n\n`;
+
+            currentMessages.forEach(message => {
+                const role = message.role === 'user' ? '👤 Người dùng' : '🤖 AI Agent';
+                content += `### ${role} - ${formatDateTime(message.created_at)}\n\n`;
+                content += `${message.content}\n\n---\n\n`;
+            });
+
+            const filename = `testcase_${currentRequest.conversation_id}_${new Date().toISOString().split('T')[0]}.md`;
+            downloadAsFile(content, filename, 'text/markdown');
+            
+            showToast('Cuộc trò chuyện đã được xuất', 'success');
+        }
+
+        // Initialize status
+        updateStatus('idle', 'Sẵn sàng');
+    </script>
+</body>
+</html>

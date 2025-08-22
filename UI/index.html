@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Case AI Agent - Tổng quan</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Test Case AI Agent</h1>
+            <p>Tạo và quản lý test cases tự động với AI</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="nav-bar">
+                <div class="nav-title">Danh sách yêu cầu</div>
+                <div class="nav-actions">
+                    <button class="btn btn-primary" onclick="createNewRequest()">
+                        ➕ Tạo yêu cầu mới
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshRequests()">
+                        🔄 Làm mới
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <!-- Search and Filter -->
+                <div class="mb-3">
+                    <div class="form-group">
+                        <input type="text" id="searchInput" placeholder="Tìm kiếm theo tiêu đề hoặc yêu cầu..." 
+                               onkeyup="filterRequests()" class="w-100">
+                    </div>
+                </div>
+                
+                <!-- Requests Grid -->
+                <div id="requestsContainer" class="grid grid-2">
+                    <!-- Requests will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Request Modal -->
+    <div id="createModal" class="modal-overlay d-none">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Tạo yêu cầu mới</h3>
+                <button class="btn btn-secondary" onclick="closeCreateModal()">×</button>
+            </div>
+            <form id="createForm" onsubmit="handleCreateRequest(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="createTitle">Tiêu đề *</label>
+                        <input type="text" id="createTitle" required 
+                               placeholder="Ví dụ: Màn hình đăng nhập">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="createPbiRequirement">Yêu cầu PBI *</label>
+                        <textarea id="createPbiRequirement" required rows="6"
+                                  placeholder="Mô tả chi tiết yêu cầu nghiệp vụ..."></textarea>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">
+                        Hủy
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="createSubmitBtn">
+                        ✨ Tạo yêu cầu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        let allRequests = [];
+        
+        // Load requests on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRequests();
+        });
+
+        /**
+         * Load all requests from API
+         */
+        async function loadRequests() {
+            const container = document.getElementById('requestsContainer');
+            showLoading(container);
+
+            try {
+                allRequests = await apiClient.getAllRequests();
+                displayRequests(allRequests);
+            } catch (error) {
+                console.error('Error loading requests:', error);
+                showError(container, error.message);
+            }
+        }
+
+        /**
+         * Display requests in grid
+         */
+        function displayRequests(requests) {
+            const container = document.getElementById('requestsContainer');
+            
+            if (requests.length === 0) {
+                showEmptyState(
+                    container,
+                    'Chưa có yêu cầu nào',
+                    'Tạo yêu cầu đầu tiên để bắt đầu sử dụng AI Agent',
+                    {
+                        text: '➕ Tạo yêu cầu mới',
+                        onclick: 'createNewRequest()'
+                    }
+                );
+                return;
+            }
+
+            container.innerHTML = requests.map(request => `
+                <div class="card" onclick="openRequest('${request.conversation_id}')">
+                    <div class="card-header">
+                        <div class="card-title">${request.title}</div>
+                        <div class="card-subtitle">
+                            ID: ${request.conversation_id}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p>${truncateText(request.pbi_requirement, 150)}</p>
+                    </div>
+                    <div class="card-footer">
+                        <div>
+                            <small class="text-muted">
+                                Tạo: ${formatRelativeTime(request.created_at)}<br>
+                                Cập nhật: ${formatRelativeTime(request.updated_at)}
+                            </small>
+                        </div>
+                        <div>
+                            <button class="btn btn-danger btn-sm" 
+                                    onclick="event.stopPropagation(); deleteRequest('${request.conversation_id}', '${request.title}')"
+                                    title="Xóa yêu cầu">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * Filter requests based on search input
+         */
+        function filterRequests() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            if (!searchTerm) {
+                displayRequests(allRequests);
+                return;
+            }
+
+            const filteredRequests = allRequests.filter(request => 
+                request.title.toLowerCase().includes(searchTerm) ||
+                request.pbi_requirement.toLowerCase().includes(searchTerm) ||
+                request.conversation_id.toLowerCase().includes(searchTerm)
+            );
+
+            displayRequests(filteredRequests);
+        }
+
+        /**
+         * Refresh requests list
+         */
+        async function refreshRequests() {
+            await loadRequests();
+            showToast('Danh sách đã được làm mới', 'success');
+        }
+
+        /**
+         * Open create request modal
+         */
+        function createNewRequest() {
+            document.getElementById('createModal').classList.remove('d-none');
+            document.getElementById('createTitle').focus();
+        }
+
+        /**
+         * Close create request modal
+         */
+        function closeCreateModal() {
+            document.getElementById('createModal').classList.add('d-none');
+            document.getElementById('createForm').reset();
+        }
+
+        /**
+         * Handle create request form submission
+         */
+        async function handleCreateRequest(event) {
+            event.preventDefault();
+            
+            const title = document.getElementById('createTitle').value.trim();
+            const pbiRequirement = document.getElementById('createPbiRequirement').value.trim();
+            const submitBtn = document.getElementById('createSubmitBtn');
+            
+            // Validate
+            const errors = validateForm({ title, pbi_requirement: pbiRequirement });
+            if (errors.length > 0) {
+                showToast(errors.join('<br>'), 'error');
+                return;
+            }
+
+            // Show loading
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Đang tạo...';
+
+            try {
+                const newRequest = await apiClient.createRequest(title, pbiRequirement);
+                
+                closeCreateModal();
+                showToast('Yêu cầu đã được tạo thành công!', 'success');
+                
+                // Redirect to detail page
+                window.location.href = `pages/detail.html?id=${newRequest.conversation_id}`;
+                
+            } catch (error) {
+                console.error('Error creating request:', error);
+                showToast('Có lỗi khi tạo yêu cầu: ' + error.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '✨ Tạo yêu cầu';
+            }
+        }
+
+        /**
+         * Open request detail page
+         */
+        function openRequest(conversationId) {
+            window.location.href = `pages/detail.html?id=${conversationId}`;
+        }
+
+        /**
+         * Delete request with confirmation
+         */
+        function deleteRequest(conversationId, title) {
+            confirmDialog(
+                `Bạn có chắc chắn muốn xóa yêu cầu "${title}"?<br><br>Tất cả tin nhắn liên quan sẽ bị xóa vĩnh viễn.`,
+                async () => {
+                    try {
+                        await apiClient.deleteRequest(conversationId);
+                        showToast('Yêu cầu đã được xóa', 'success');
+                        await loadRequests();
+                    } catch (error) {
+                        console.error('Error deleting request:', error);
+                        showToast('Có lỗi khi xóa yêu cầu: ' + error.message, 'error');
+                    }
+                }
+            );
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('createModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeCreateModal();
+            }
+        });
+
+        // Handle ESC key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeCreateModal();
+            }
+        });
+    </script>
+</body>
+</html>
