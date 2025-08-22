@@ -48,8 +48,8 @@ def save_testcase(
     """
     try:
         # Get user context from config
-        conversation_id = config.get("thread_id", f"conv_defaut")
-        
+        conversation_id = config.get("metadata",{}).get("thread_id", f"conv_defaut")
+        print(f"Conversation ID: {conversation_id}")
         print(f"Saving {len(testcase_titles)} test cases to database...")
         print(f"Titles: {testcase_titles}")
         print(f"Steps: {testcase_steps}")
@@ -75,7 +75,7 @@ def save_testcase(
             testcase_steps=testcase_steps,
             conversation_id=conversation_id
         )
-        
+
         # Count successful saves
         successful_saves = len([tc for tc in created_test_cases if tc is not None])
         

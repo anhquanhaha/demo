@@ -10,7 +10,8 @@ import base64
 from Model import Item, ItemCreate, ChatMessage, ChatRequest, AgentTestcaseRequest, RequestCreate, RequestResponse, MessageResponse
 from Service import ChatService
 from database import db_manager
-
+from Service.testcase_service import testcase_service
+from Model.testcase_models import TestCaseListResponse
 # Tạo instance FastAPI
 app = FastAPI(
     title="Demo FastAPI Application",
@@ -28,6 +29,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 
@@ -303,6 +305,15 @@ async def agent_testcase_edit(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi xử lý agent testcase edit: {str(e)}")
 
+# Test Case Management APIs
+@app.get("/testcases/{conversation_id}", response_model=TestCaseListResponse)
+async def get_list_testcase_by_conversation_id(conversation_id: str):
+    """Lấy danh sách test cases theo conversation_id"""
+    try:
+        result = testcase_service.get_test_cases_by_conversation_id(conversation_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Chạy server nếu file được execute trực tiếp
 if __name__ == "__main__":

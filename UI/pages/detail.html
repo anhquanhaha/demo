@@ -414,9 +414,10 @@
                     }
                 }
             } finally {
-                // Reload messages to get the saved version
+                // Reload messages and test cases to get the latest data
                 setTimeout(() => {
                     loadMessages();
+                    loadTestCases(); // Auto-refresh test cases after AI response
                 }, 1000);
             }
         }
@@ -592,48 +593,25 @@
         }
 
         /**
-         * Load test cases (sample data for now)
+         * Load test cases from API
          */
-        function loadTestCases() {
-            const sampleTestCases = [
-                {
-                    id: 1,
-                    title: "Kiểm tra đăng nhập với thông tin hợp lệ",
-                    steps: "1. Mở trang đăng nhập\n2. Nhập email hợp lệ\n3. Nhập mật khẩu đúng\n4. Nhấn nút Đăng nhập\n5. Kiểm tra chuyển hướng đến trang chủ",
-                    created_at: "2024-01-15T10:30:00Z",
-                    updated_at: "2024-01-15T10:30:00Z"
-                },
-                {
-                    id: 2,
-                    title: "Kiểm tra đăng nhập với email không hợp lệ",
-                    steps: "1. Mở trang đăng nhập\n2. Nhập email không đúng định dạng\n3. Nhập mật khẩu\n4. Nhấn nút Đăng nhập\n5. Kiểm tra hiển thị thông báo lỗi",
-                    created_at: "2024-01-15T10:35:00Z",
-                    updated_at: "2024-01-15T10:35:00Z"
-                },
-                {
-                    id: 3,
-                    title: "Kiểm tra đăng nhập với mật khẩu sai",
-                    steps: "1. Mở trang đăng nhập\n2. Nhập email hợp lệ\n3. Nhập mật khẩu sai\n4. Nhấn nút Đăng nhập\n5. Kiểm tra hiển thị thông báo lỗi mật khẩu",
-                    created_at: "2024-01-15T10:40:00Z",
-                    updated_at: "2024-01-15T10:40:00Z"
-                },
-                {
-                    id: 4,
-                    title: "Kiểm tra đăng nhập với trường trống",
-                    steps: "1. Mở trang đăng nhập\n2. Để trống email\n3. Để trống mật khẩu\n4. Nhấn nút Đăng nhập\n5. Kiểm tra hiển thị thông báo yêu cầu nhập thông tin",
-                    created_at: "2024-01-15T10:45:00Z",
-                    updated_at: "2024-01-15T10:45:00Z"
-                },
-                {
-                    id: 5,
-                    title: "Kiểm tra chức năng nhớ mật khẩu",
-                    steps: "1. Mở trang đăng nhập\n2. Nhập thông tin hợp lệ\n3. Tích chọn 'Nhớ mật khẩu'\n4. Đăng nhập thành công\n5. Đóng trình duyệt và mở lại\n6. Kiểm tra tự động đăng nhập",
-                    created_at: "2024-01-15T10:50:00Z",
-                    updated_at: "2024-01-15T10:50:00Z"
-                }
-            ];
-
-            displayTestCases(sampleTestCases);
+        async function loadTestCases() {
+            const container = document.getElementById('testCasesContainer');
+            
+            try {
+                // Show loading state
+                showLoading(container);
+                
+                // Call API to get test cases
+                const response = await apiClient.getTestCases(conversationId);
+                
+                // Display the test cases
+                displayTestCases(response.test_cases || []);
+                
+            } catch (error) {
+                console.error('Error loading test cases:', error);
+                showError(container, 'Có lỗi khi tải test cases: ' + error.message);
+            }
         }
 
         /**
@@ -661,11 +639,9 @@
                         <thead>
                             <tr>
                                 <th style="width: 60px;">ID</th>
-                                <th style="width: 300px;">Tiêu đề Test Case</th>
+                                <th style="max-width: 150px;">Tiêu đề Test Case</th>
                                 <th>Các bước thực hiện</th>
-                                <th style="width: 150px;">Ngày tạo</th>
-                                <th style="width: 150px;">Cập nhật</th>
-                                <th style="width: 100px;">Thao tác</th>
+                                <th style="width: 60px;">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -682,12 +658,7 @@
             ).join('')}
                                         </div>
                                     </td>
-                                    <td class="text-center">
-                                        <small>${formatDateTime(testCase.created_at)}</small>
-                                    </td>
-                                    <td class="text-center">
-                                        <small>${formatDateTime(testCase.updated_at)}</small>
-                                    </td>
+                           
                                     <td class="text-center">
                                         <button class="btn btn-sm btn-secondary" onclick="viewTestCase(${testCase.id})" title="Xem chi tiết">
                                             👁️
@@ -712,9 +683,7 @@
          * Refresh test cases
          */
         async function refreshTestCases() {
-            // TODO: Replace with actual API call
-            // const testCases = await apiClient.getTestCases(conversationId);
-            loadTestCases();
+            await loadTestCases();
             showToast('Test Cases đã được làm mới', 'success');
         }
 

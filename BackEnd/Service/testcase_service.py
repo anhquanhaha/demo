@@ -34,7 +34,22 @@ class TestCaseService:
         except Exception as e:
             print(f"Error creating test case: {e}")
             return None
-    
+    def get_test_cases_by_conversation_id(self, conversation_id: str) -> TestCaseListResponse:
+        """Lấy tất cả test cases theo conversation_id"""
+        try:
+            results = self.db.get_test_cases_by_conversation_id(conversation_id)
+            test_cases = [TestCaseResponse(**result) for result in results]
+            
+            return TestCaseListResponse(
+                test_cases=test_cases,
+                total=len(test_cases)
+            )
+            
+        except Exception as e:
+            print(f"Error getting test cases by conversation_id: {e}")
+            return TestCaseListResponse(test_cases=[], total=0)
+        
+        
     def get_all_test_cases(self) -> TestCaseListResponse:
         """Lấy tất cả test cases"""
         try:

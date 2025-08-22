@@ -108,6 +108,19 @@ class DatabaseManager:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
     
+    def get_test_cases_by_conversation_id(self, conversation_id: str) -> List[Dict[str, Any]]:
+            """Lấy tất cả test cases theo conversation_id"""
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM test_cases 
+                    WHERE conversation_id = ?
+                    ORDER BY created_at DESC
+                """, (conversation_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+            
     def get_request_by_conversation_id(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         """Lấy request theo conversation_id"""
         with self.get_connection() as conn:

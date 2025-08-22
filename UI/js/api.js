@@ -146,6 +146,13 @@ class APIClient {
 
         return response;
     }
+
+    /**
+     * Lấy danh sách test cases theo conversation_id
+     */
+    async getTestCases(conversationId) {
+        return await this.request(`/testcases/${conversationId}`);
+    }
 }
 
 // Export singleton instance

@@ -55,11 +55,7 @@ Nhiệm vụ của bạn là chuyển đổi yêu cầu nghiệp vụ được c
 ## Hướng dẫn chi tiết  
 1. Đọc và phân tích yêu cầu nghiệp vụ.  
 2. Sinh ra danh sách các Testcase đảm bảo bao phủ đầy đủ các luồng chính (happy case) và luồng phụ (negative case, exception) và yêu cầu non-function như bảo mật, hiệu năng 
-3. Mỗi Testcase phải bao gồm các trường:  
-   - title: mô tả ngắn gọn, dễ hiểu về mục tiêu kiểm thử.  
-   - steps: danh sách các bước gồm:  
-        - action: mô tả thao tác thực hiện.  
-        - expected_result: kết quả mong đợi.  
+3. Sử dụng tool để lưu trữ test case vào database.
 
 ## Yêu cầu chất lượng  
 - Mỗi testcase phải ngắn gọn, rõ ràng, dễ thực hiện.  
