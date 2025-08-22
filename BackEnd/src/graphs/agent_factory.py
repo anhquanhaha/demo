@@ -17,10 +17,10 @@ try:
 except ImportError:
     HAS_FAKE_LLM = False
 
-from ..agents import BaseAgent, ReactAgent
-from ..state import AgentConfig
-from ..tools import ToolRegistry
-from ..utils import get_logger, get_config
+from agents import BaseAgent, ReactAgent
+from state import AgentConfig
+from tools import ToolRegistry
+from utils import get_logger, get_config
 
 logger = get_logger(__name__)
 
@@ -75,7 +75,7 @@ class AgentFactory:
             if not HAS_FAKE_LLM:
                 raise ImportError("langchain-community not available")
             
-            logger.info("Creating FakeListLLM for demo )
+            logger.info("Creating FakeListLLM for demo")
             return FakeListLLM(responses=[
                 "Tôi là AI Agent được tạo bởi LangGraph. Tôi có thể giúp bạn với nhiều tác vụ khác nhau!",
                 "Để sử dụng đầy đủ tính năng, hãy cấu hình OpenAI API key.",

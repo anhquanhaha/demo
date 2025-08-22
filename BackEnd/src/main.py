@@ -2,7 +2,11 @@
 AI Agent với LangGraph - Main Application Entry Point
 """
 import sys
+import os
 from typing import Optional
+
+# Add src directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import modules from our architecture
 from graphs import AgentFactory, GraphRunner
