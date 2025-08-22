@@ -639,9 +639,9 @@
                         <thead>
                             <tr>
                                 <th style="width: 60px;">ID</th>
-                                <th style="max-width: 150px;">Tiêu đề Test Case</th>
-                                <th>Các bước thực hiện</th>
-                                <th style="width: 60px;">Thao tác</th>
+                                <th style="width: 120px;">Tiêu đề Test Case</th>
+                                <th style="width: auto;">Các bước thực hiện</th>
+                                <th style="width: 80px;">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -652,7 +652,7 @@
                                         <div class="test-case-title">${testCase.title}</div>
                                     </td>
                                     <td>
-                                        <div class="test-case-steps">
+                                        <div style="background-color: #f5f5f5; padding: 10px; border-radius: 5px;" class="test-case-steps">
                                             ${testCase.steps.split('\n').map(step =>
                 `<div class="step-item">${step}</div>`
             ).join('')}
