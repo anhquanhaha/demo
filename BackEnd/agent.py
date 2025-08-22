@@ -5,8 +5,14 @@ from dotenv import load_dotenv
 import os
 import base64
 from typing import Dict, Any, Optional
-
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+from ddgs import DDGS
 load_dotenv()
+
+class WebSearchInput(BaseModel):
+    input:str = Field(description="Nội dung cần tìm kiếm trên internet để cập nhật thêm thông tin trả lời.")
+
 
 def get_weather(city: str) -> str:  
     """Get weather for a given city."""
@@ -15,6 +21,14 @@ def get_weather(city: str) -> str:
 def analyze_image(image_data: str, description: str = "") -> str:
     """Analyze an image and provide description."""
     return f"Đây là một hình ảnh được tải lên. {description if description else 'Không có mô tả thêm.'}"
+
+def web_search(input: str):
+    """
+    Tìm kiếm thông tin trên internet dựa vào nội dung người dùng cung cấp.
+    """
+    results = DDGS().text(input, max_results=5, region="vn-vi")
+    return results
+
 
 # Tạo model với streaming support
 model = ChatOpenAI(
@@ -30,7 +44,7 @@ memory = MemorySaver()
 # Tạo agent với streaming support và memory
 agent = create_react_agent(
     model=model,
-    tools=[get_weather, analyze_image],  
+    tools=[get_weather, analyze_image,web_search],  
     checkpointer=memory,  # Thêm memory support
     prompt="""<default_system_instruction>
 Bạn là một chuyên gia Kiểm thử phần mềm (QA/Test Engineer) có kinh nghiệm.  

@@ -102,6 +102,26 @@ class APIClient {
 
         return response;
     }
+
+    /**
+     * Edit testcase với streaming response
+     */
+    async editTestCase(conversationId, prompt) {
+        const formData = new FormData();
+        formData.append('conversation_id', conversationId);
+        formData.append('prompt', prompt);
+
+        const response = await fetch(`${this.baseURL}/agent-testcase`, {
+            method: 'PUT',
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response;
+    }
 }
 
 // Export singleton instance

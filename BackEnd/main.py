@@ -214,6 +214,47 @@ async def delete_request(conversation_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/agent-testcase")
+async def agent_testcase_edit(
+    conversation_id: str = Form(...),
+    prompt: str = Form(...)
+):
+    """
+    Agent testcase edit endpoint với streaming response
+    
+    Args:
+        conversation_id: Thread ID của conversation cần edit (required)
+        prompt: Yêu cầu chỉnh sửa từ người dùng (required)
+    
+    Returns:
+        StreamingResponse: Server-Sent Events stream
+    """
+    try:
+        # Kiểm tra conversation_id có tồn tại không
+        request = db_manager.get_request_by_conversation_id(conversation_id)
+        if not request:
+            raise HTTPException(status_code=404, detail="Conversation không tồn tại")
+        
+        # Trả về streaming response
+        return StreamingResponse(
+            ChatService.process_agent_testcase_edit_stream(
+                conversation_id=conversation_id,
+                prompt=prompt
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi xử lý agent testcase edit: {str(e)}")
+
+
 # Chạy server nếu file được execute trực tiếp
 if __name__ == "__main__":
     uvicorn.run(

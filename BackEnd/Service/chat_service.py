@@ -349,3 +349,146 @@ class ChatService:
                 "conversation_id": conversation_id
             }
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+    
+    @staticmethod
+    async def process_agent_testcase_edit_stream(
+        conversation_id: str,
+        prompt: str
+    ) -> AsyncGenerator[str, None]:
+        """
+        Xử lý agent testcase edit request với streaming response
+        
+        Args:
+            conversation_id: Thread ID của conversation cần edit
+            prompt: Yêu cầu chỉnh sửa từ người dùng
+            
+        Yields:
+            str: Server-Sent Events formatted strings
+        """
+        try:
+            # Lấy lịch sử conversation từ database
+            messages = db_manager.get_messages_by_conversation_id(conversation_id)
+            
+            if not messages:
+                error_data = {
+                    "type": "error",
+                    "message": "Không tìm thấy lịch sử conversation",
+                    "conversation_id": conversation_id
+                }
+                yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+                return
+            
+            # Tạo edit message với context
+            edit_message_content = ChatService._create_edit_message_with_context(
+                messages=messages,
+                edit_prompt=prompt
+            )
+            
+            # Lưu user edit message vào database
+            db_manager.add_message(conversation_id, "user", f"[EDIT REQUEST] {prompt}")
+            
+            # Tạo config cho agent với thread_id để sử dụng memory
+            config = {"configurable": {"thread_id": conversation_id}}
+            
+            # Gọi agent với streaming và thread_id
+            response = agent.astream(
+                {"messages": [{"role": "user", "content": edit_message_content}]},
+                config=config
+            )
+            
+            # Biến để lưu full response content
+            full_response_content = ""
+            
+            # Stream từng chunk của response
+            async for chunk in response:
+                # Langgraph agent trả về structure: {'agent': {'messages': [...]}}
+                if isinstance(chunk, dict):
+                    # Kiểm tra structure của langgraph
+                    if 'agent' in chunk and isinstance(chunk['agent'], dict):
+                        agent_data = chunk['agent']
+                        if 'messages' in agent_data:
+                            for message in agent_data['messages']:
+                                if hasattr(message, 'content') and message.content:
+                                    # Lưu full content để save vào database sau
+                                    full_response_content = message.content
+                                    
+                                    # Split content thành chunks nhỏ để tạo streaming effect
+                                    content = message.content
+                                    chunk_size = 50  # Chia nhỏ content
+                                    
+                                    for i in range(0, len(content), chunk_size):
+                                        chunk_content = content[i:i + chunk_size]
+                                        data = {
+                                            "type": "chunk",
+                                            "content": chunk_content,
+                                            "role": "assistant",
+                                            "conversation_id": conversation_id
+                                        }
+                                        yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                                        
+                                        # Thêm delay nhỏ để tạo streaming effect
+                                        await asyncio.sleep(0.05)
+                    
+                    # Fallback cho structure cũ
+                    elif 'messages' in chunk:
+                        for message in chunk['messages']:
+                            if hasattr(message, 'content') and message.content:
+                                full_response_content = message.content
+                                data = {
+                                    "type": "message",
+                                    "content": message.content,
+                                    "role": "assistant",
+                                    "conversation_id": conversation_id
+                                }
+                                yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+            
+            # Lưu assistant response vào database
+            if full_response_content:
+                db_manager.add_message(conversation_id, "assistant", full_response_content)
+            
+            # Gửi signal kết thúc stream
+            yield f"data: {json.dumps({'type': 'end', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            # Gửi lỗi qua stream
+            error_data = {
+                "type": "error",
+                "message": str(e),
+                "conversation_id": conversation_id
+            }
+            yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+    
+    @staticmethod
+    def _create_edit_message_with_context(messages: List[Dict[str, Any]], edit_prompt: str) -> str:
+        """
+        Tạo message với context cho edit request
+        
+        Args:
+            messages: Lịch sử messages từ database
+            edit_prompt: Yêu cầu chỉnh sửa từ người dùng
+            
+        Returns:
+            str: Message đã được format với context
+        """
+        # Tạo context từ lịch sử conversation
+        context_parts = ["**LỊCH SỬ CONVERSATION:**\n"]
+        
+        for msg in messages:
+            role_label = "👤 NGƯỜI DÙNG" if msg['role'] == 'user' else "🤖 ASSISTANT"
+            context_parts.append(f"{role_label}: {msg['content']}\n")
+        
+        # Thêm yêu cầu edit
+        context_parts.extend([
+            "\n" + "="*50,
+            "\n**YÊU CẦU CHỈNH SỬA MỚI:**",
+            f"\n{edit_prompt}",
+            "\n" + "="*50,
+            "\nHãy dựa vào lịch sử conversation ở trên và yêu cầu chỉnh sửa mới để:",
+            "1. Hiểu rõ context và nội dung đã thảo luận trước đó",
+            "2. Thực hiện chỉnh sửa theo yêu cầu mới",
+            "3. Đưa ra kết quả đã được cập nhật/sửa đổi",
+            "4. Giải thích những thay đổi đã thực hiện (nếu cần)",
+            "\nVui lòng trả lời bằng tiếng Việt."
+        ])
+        
+        return "\n".join(context_parts)

@@ -117,7 +117,7 @@
                     <div>
                         <textarea id="messageInput" placeholder="Nhập tin nhắn..."
                             style="width: 100%; height: 100px; margin-top: 15px; padding: 10px;"></textarea>
-                        <button class="btn btn-primary" style="margin-top: 10px;" onclick="sendMessage()">Gửi</button>
+                        <button class="btn btn-primary" style="margin-top: 10px;" onclick="sendMessage()" id="sendMessageBtn">Gửi</button>
                     </div>
                 </div>
             </div>
@@ -296,16 +296,28 @@
                 return;
             }
 
+            // Set loading state
             isStreaming = true;
             updateStatus('connecting', 'Đang kết nối...');
 
             const sendBtn = document.getElementById('sendToAgentBtn');
+            const messageInput = document.getElementById('messageInput');
+            
+            // Update UI for loading state
             sendBtn.disabled = true;
             sendBtn.innerHTML = '⏳ Đang xử lý...';
+            
+            // Disable input during processing
+            messageInput.disabled = true;
+            messageInput.placeholder = 'Đang xử lý yêu cầu...';
+            setInputLoadingState(true);
 
             // Get file attachment
             const fileInput = document.getElementById('fileAttachment');
             const fileAttachment = fileInput.files[0] || null;
+
+            // Add typing indicator
+            addTypingIndicator();
 
             try {
                 const response = await apiClient.sendToAgent(
@@ -315,11 +327,14 @@
                     fileAttachment
                 );
 
-                updateStatus('streaming', 'Đang nhận dữ liệu...');
+                updateStatus('streaming', 'AI đang tạo test case...');
 
                 // Clear file input
                 fileInput.value = '';
                 document.getElementById('fileLabel').textContent = '📎 Chọn file để tải lên';
+
+                // Remove typing indicator before processing response
+                removeTypingIndicator();
 
                 // Process streaming response
                 await processStreamingResponse(response);
@@ -327,11 +342,20 @@
             } catch (error) {
                 console.error('Error sending to agent:', error);
                 updateStatus('error', 'Có lỗi xảy ra');
+                removeTypingIndicator();
                 addStreamingMessage('error', `❌ Lỗi: ${error.message}`);
             } finally {
+                // Reset UI state
                 isStreaming = false;
+                setInputLoadingState(false);
+                updateStatus('idle', 'Sẵn sàng');
+                
+                // Reset buttons and inputs
                 sendBtn.disabled = false;
                 sendBtn.innerHTML = '🚀 Gửi cho AI Agent';
+                
+                messageInput.disabled = false;
+                messageInput.placeholder = 'Nhập tin nhắn...';
             }
         }
 
@@ -380,18 +404,26 @@
         function handleStreamData(data) {
             switch (data.type) {
                 case 'chunk':
+                    // Remove user loading indicator when first AI response chunk arrives
+                    removeUserLoadingIndicator();
                     appendToStreamingMessage(data.content);
                     break;
 
                 case 'message':
+                    // Remove user loading indicator when AI response starts
+                    removeUserLoadingIndicator();
                     addStreamingMessage('assistant', data.content);
                     break;
 
                 case 'end':
                     updateStatus('complete', 'Hoàn thành');
+                    // Ensure user loading indicator is removed on completion
+                    removeUserLoadingIndicator();
                     break;
 
                 case 'error':
+                    // Remove user loading indicator on error
+                    removeUserLoadingIndicator();
                     addStreamingMessage('error', `❌ Lỗi: ${data.message}`);
                     updateStatus('error', 'Có lỗi xảy ra');
                     break;
@@ -403,7 +435,7 @@
         /**
          * Add streaming message to chat
          */
-        function addStreamingMessage(role, content) {
+        function addStreamingMessage(role, content, isWaitingForResponse = false) {
             const container = document.getElementById('messagesContainer');
 
             // Remove empty state if exists
@@ -414,6 +446,14 @@
 
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role}`;
+            
+            // Add loading dots to user message if waiting for response
+            let messageContent = content;
+            if (role === 'user' && isWaitingForResponse) {
+                messageContent += ' <span class="user-loading-dots">...</span>';
+                messageDiv.setAttribute('data-waiting', 'true');
+            }
+            
             messageDiv.innerHTML = `
                 <div class="message-header">
                     <span class="message-role">
@@ -421,7 +461,7 @@
                     </span>
                     <span class="message-time">${formatDateTime(new Date().toISOString())}</span>
                 </div>
-                <div class="message-content">${content}</div>
+                <div class="message-content">${messageContent}</div>
             `;
 
             container.appendChild(messageDiv);
@@ -429,6 +469,20 @@
 
             if (role === 'assistant') {
                 currentStreamingMessage = messageDiv.querySelector('.message-content');
+            }
+        }
+
+        /**
+         * Remove loading indicator from user message
+         */
+        function removeUserLoadingIndicator() {
+            const waitingMessage = document.querySelector('.message[data-waiting="true"]');
+            if (waitingMessage) {
+                const loadingDots = waitingMessage.querySelector('.user-loading-dots');
+                if (loadingDots) {
+                    loadingDots.remove();
+                }
+                waitingMessage.removeAttribute('data-waiting');
             }
         }
 
@@ -656,6 +710,191 @@
             showToast(`Chỉnh sửa Test Case #${testCaseId}`, 'info');
             // TODO: Implement edit test case functionality
         }
+
+        /**
+         * Send message (edit request) to AI Agent
+         */
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendMessageBtn');
+            const prompt = messageInput.value.trim();
+
+            if (!prompt) {
+                showToast('Vui lòng nhập nội dung tin nhắn', 'warning');
+                return;
+            }
+
+            if (isStreaming) {
+                showToast('Đang xử lý yêu cầu trước đó...', 'warning');
+                return;
+            }
+
+            if (!conversationId) {
+                showToast('Không tìm thấy conversation ID', 'error');
+                return;
+            }
+
+            // Set loading state
+            isStreaming = true;
+            setInputLoadingState(true);
+            updateStatus('connecting', 'Đang kết nối...');
+
+            // Update send button
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '⏳ Đang gửi...';
+
+            // Clear input and disable it
+            messageInput.value = '';
+            messageInput.disabled = true;
+            messageInput.placeholder = 'Đang xử lý tin nhắn...';
+
+            // Add user message to chat with loading indicator
+            addStreamingMessage('user', prompt, true);
+
+            // Add typing indicator
+            addTypingIndicator();
+
+            try {
+                const response = await apiClient.editTestCase(conversationId, prompt);
+
+                updateStatus('streaming', 'AI đang trả lời...');
+
+                // Remove typing indicator before processing response
+                removeTypingIndicator();
+
+                // Process streaming response
+                await processStreamingResponse(response);
+
+            } catch (error) {
+                console.error('Error sending message:', error);
+                updateStatus('error', 'Có lỗi xảy ra');
+                removeTypingIndicator();
+                addStreamingMessage('error', `❌ Lỗi: ${error.message}`);
+            } finally {
+                // Reset UI state
+                isStreaming = false;
+                setInputLoadingState(false);
+                updateStatus('idle', 'Sẵn sàng');
+
+                // Reset send button
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = 'Gửi';
+
+                // Reset input
+                messageInput.disabled = false;
+                messageInput.placeholder = 'Nhập tin nhắn...';
+                messageInput.focus();
+            }
+        }
+
+        /**
+         * Set input loading state
+         */
+        function setInputLoadingState(isLoading) {
+            const messageInput = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendMessageBtn');
+
+            if (isLoading) {
+                messageInput.style.opacity = '0.6';
+                messageInput.style.cursor = 'not-allowed';
+                sendBtn.style.opacity = '0.6';
+            } else {
+                messageInput.style.opacity = '1';
+                messageInput.style.cursor = 'text';
+                sendBtn.style.opacity = '1';
+            }
+        }
+
+        /**
+         * Add typing indicator to chat
+         */
+        function addTypingIndicator() {
+            const container = document.getElementById('messagesContainer');
+            
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'typingIndicator';
+            typingDiv.className = 'message assistant typing';
+            typingDiv.innerHTML = `
+                <div class="message-header">
+                    <span class="message-role">🤖 AI Agent</span>
+                    <span class="message-time">đang trả lời...</span>
+                </div>
+                <div class="message-content typing-dots">
+                    <span class="typing-dot">●</span>
+                    <span class="typing-dot">●</span>
+                    <span class="typing-dot">●</span>
+                    <span style="margin-left: 5px;">AI đang suy nghĩ...</span>
+                </div>
+            `;
+
+            container.appendChild(typingDiv);
+            container.scrollTop = container.scrollHeight;
+
+            // Add CSS for typing animation
+            if (!document.querySelector('#typingAnimation')) {
+                const style = document.createElement('style');
+                style.id = 'typingAnimation';
+                style.textContent = `
+                    .typing-dots {
+                        display: flex;
+                        align-items: center;
+                        color: #666;
+                        font-style: italic;
+                    }
+                    .typing-dot {
+                        animation: typingDot 1.4s infinite ease-in-out;
+                        margin-right: 2px;
+                        opacity: 0.4;
+                    }
+                    .typing-dot:nth-child(1) { animation-delay: 0s; }
+                    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+                    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+                    @keyframes typingDot {
+                        0%, 80%, 100% { opacity: 0.4; }
+                        40% { opacity: 1; }
+                    }
+                    .message.typing {
+                        background-color: #f0f0f0;
+                        border-left: 3px solid #007bff;
+                    }
+                    .user-loading-dots {
+                        animation: userLoadingDots 1.5s infinite;
+                        color: #007bff;
+                        font-weight: bold;
+                        margin-left: 3px;
+                    }
+                    @keyframes userLoadingDots {
+                        0%, 33% { opacity: 0.3; }
+                        34%, 66% { opacity: 0.7; }
+                        67%, 100% { opacity: 1; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        /**
+         * Remove typing indicator from chat
+         */
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        // Add Enter key support for message input
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+            }
+        });
 
         // Initialize status
         updateStatus('idle', 'Sẵn sàng');
