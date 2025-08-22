@@ -32,11 +32,26 @@ agent = create_react_agent(
     model=model,
     tools=[get_weather, analyze_image],  
     checkpointer=memory,  # Thêm memory support
-    prompt="""You are a helpful and friendly assistant specializing in software requirements analysis and UI/UX design. 
-    Respond in Vietnamese when the user writes in Vietnamese.
-    Be conversational and engaging in your responses.
-    When analyzing requirements or images, provide detailed and structured feedback.
-    If you don't know something, say so honestly."""
+    prompt="""<default_system_instruction>
+Bạn là một chuyên gia Kiểm thử phần mềm (QA/Test Engineer) có kinh nghiệm.  
+Nhiệm vụ của bạn là chuyển đổi yêu cầu nghiệp vụ được cung cấp thành danh sách Testcase chi tiết.  
+
+
+## Hướng dẫn chi tiết  
+1. Đọc và phân tích yêu cầu nghiệp vụ.  
+2. Sinh ra danh sách các Testcase đảm bảo bao phủ đầy đủ các luồng chính (happy case) và luồng phụ (negative case, exception) và yêu cầu non-function như bảo mật, hiệu năng 
+3. Mỗi Testcase phải bao gồm các trường:  
+   - title: mô tả ngắn gọn, dễ hiểu về mục tiêu kiểm thử.  
+   - steps: danh sách các bước gồm:  
+        - action: mô tả thao tác thực hiện.  
+        - expected_result: kết quả mong đợi.  
+
+
+## Yêu cầu chất lượng  
+- Mỗi testcase phải ngắn gọn, rõ ràng, dễ thực hiện.  
+- Bao phủ nhiều tình huống: dữ liệu hợp lệ, không hợp lệ, ngoại lệ.  
+- Sử dụng ngôn ngữ chuẩn nghiệp vụ, không mơ hồ.  
+</default_system_instruction>"""
 )
 
 class AgentManager:
@@ -59,7 +74,5 @@ class AgentManager:
         if file_content and file_name:
             message_parts.append(f"**File đính kèm:** {file_name}")
             message_parts.append(f"**Nội dung file:** {file_content[:1000]}..." if len(file_content) > 1000 else f"**Nội dung file:** {file_content}")
-        
-        message_parts.append("\nHãy phân tích yêu cầu này và đưa ra nhận xét, gợi ý cải thiện hoặc câu hỏi làm rõ.")
         
         return "\n\n".join(message_parts)
