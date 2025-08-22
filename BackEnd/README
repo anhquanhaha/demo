@@ -1,0 +1,28 @@
+# AI Agent với LangGraph
+## 🧠 Giới Thiệu Dự Án
+Dự án này là một hệ thống AI Agent được xây dựng trên nền tảng **LangGraph**, giúp triển khai các tác vụ thông minh theo luồng xử lý có thể mở rộng. Mục tiêu của dự án là cung cấp một kiến trúc rõ ràng, dễ bảo trì và phát triển thêm trong tương lai.
+
+## 📁 Cấu Trúc Thư Mục
+| Thư mục        | Mô tả |
+|----------------|-------|
+| `src/`         | Chứa toàn bộ source code chính |
+| `src/agents/`  | Các agent xử lý tác vụ (ví dụ: ResearcherAgent, WriterAgent) |
+| `src/nodes/`   | Các node trong graph, mỗi node là một bước xử lý |
+| `src/graphs/`  | Chứa logic xây dựng và kết nối graph bằng LangGraph |
+| `src/state/`   | Định nghĩa trạng thái (state) của agent và schema dùng Pydantic |
+| `src/tools/`   | Các công cụ hỗ trợ agent như tìm kiếm, LLM, database |
+| `src/utils/`   | Các hàm hỗ trợ chung như config, logger, validators |
+| `configs/`     | File cấu hình YAML cho agent, graph và tools |
+
+## 🛠 Công Nghệ Sử Dụng
+- **LangGraph**: Xây dựng luồng xử lý đa bước cho AI Agent
+- **LangChain**: Hỗ trợ kết nối với LLM và quản lý chain logic
+- **OpenAI API**: Dùng làm engine xử lý ngôn ngữ
+- **Pydantic**: Quản lý state và validate dữ liệu
+- **YAML**: Định nghĩa cấu hình linh hoạt
+- **Python 3.10+**: Ngôn ngữ lập trình chính
+
+## 🚀 Mục Tiêu Dự Án
+- Cung cấp một hệ thống AI agent linh hoạt và dễ mở rộng
+- Hỗ trợ nhiều mode chạy: tương tác (interactive), chạy đơn (task), chạy hàng loạt (batch)
+- Dễ dàng tích hợp thêm agent mới hoặc điều chỉnh luồng xử lý
