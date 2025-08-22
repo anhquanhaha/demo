@@ -122,6 +122,30 @@ class APIClient {
 
         return response;
     }
+
+    /**
+     * Edit testcase với file attachment và streaming response
+     */
+    async editTestCaseWithFile(conversationId, prompt, fileAttachment) {
+        const formData = new FormData();
+        formData.append('conversation_id', conversationId);
+        formData.append('prompt', prompt);
+        
+        if (fileAttachment) {
+            formData.append('file_attachment', fileAttachment);
+        }
+
+        const response = await fetch(`${this.baseURL}/agent-testcase`, {
+            method: 'PUT',
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response;
+    }
 }
 
 // Export singleton instance

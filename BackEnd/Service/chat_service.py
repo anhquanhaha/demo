@@ -353,14 +353,24 @@ class ChatService:
     @staticmethod
     async def process_agent_testcase_edit_stream(
         conversation_id: str,
-        prompt: str
+        prompt: str,
+        file_attachment: Optional[UploadFile] = None,
+        preloaded_file_name: Optional[str] = None,
+        preloaded_file_content: Optional[str] = None,
+        preloaded_base64_data: Optional[str] = None,
+        preloaded_mime_type: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
-        Xử lý agent testcase edit request với streaming response
+        Xử lý agent testcase edit request với streaming response và file attachment
         
         Args:
             conversation_id: Thread ID của conversation cần edit
             prompt: Yêu cầu chỉnh sửa từ người dùng
+            file_attachment: File đính kèm (nếu có)
+            preloaded_file_name: Tên file đã được preload
+            preloaded_file_content: Nội dung file đã được preload
+            preloaded_base64_data: Base64 data của file ảnh (nếu có)
+            preloaded_mime_type: MIME type của file ảnh (nếu có)
             
         Yields:
             str: Server-Sent Events formatted strings
@@ -378,21 +388,70 @@ class ChatService:
                 yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
                 return
             
-            # Tạo edit message với context
+            # Xử lý file attachment nếu có
+            file_name = None
+            file_content = None
+            
+            if preloaded_file_name is not None or preloaded_file_content is not None:
+                file_name, file_content = preloaded_file_name, preloaded_file_content
+            elif file_attachment:
+                file_name, file_content = await ChatService._process_file_attachment(file_attachment)
+            
+            # Tạo edit message với context và file info
             edit_message_content = ChatService._create_edit_message_with_context(
                 messages=messages,
-                edit_prompt=prompt
+                edit_prompt=prompt,
+                file_name=file_name,
+                file_content=file_content
             )
             
+            # Tạo display message cho database
+            display_message = f"[EDIT REQUEST] {prompt}"
+            if file_name:
+                display_message += f"\n📎 Đính kèm: {file_name}"
+            
             # Lưu user edit message vào database
-            db_manager.add_message(conversation_id, "user", f"[EDIT REQUEST] {prompt}")
+            db_manager.add_message(conversation_id, "user", display_message)
             
             # Tạo config cho agent với thread_id để sử dụng memory
             config = {"configurable": {"thread_id": conversation_id}}
             
+            # Tạo message content cho agent (multimodal nếu có ảnh)
+            agent_message = {"role": "user"}
+            
+            # Kiểm tra nếu có file ảnh thì tạo multimodal message
+            if (file_content and file_name and 
+                (file_content.startswith("[IMAGE:") or 
+                 (preloaded_file_content and preloaded_file_content.startswith("[IMAGE:")))):
+                
+                # Sử dụng preloaded base64 data và mime type
+                base64_data = preloaded_base64_data
+                mime_type = preloaded_mime_type or "image/jpeg"  # default
+                
+                # Nếu có base64 data thì tạo multimodal message
+                if base64_data:
+                    agent_message["content"] = [
+                        {
+                            "type": "text",
+                            "text": edit_message_content,
+                        },
+                        {
+                            "type": "image",
+                            "source_type": "base64",
+                            "data": base64_data,
+                            "mime_type": mime_type,
+                        },
+                    ]
+                else:
+                    # Fallback to text only nếu không lấy được base64
+                    agent_message["content"] = edit_message_content
+            else:
+                # Message text thông thường nếu không có ảnh
+                agent_message["content"] = edit_message_content
+            
             # Gọi agent với streaming và thread_id
             response = agent.astream(
-                {"messages": [{"role": "user", "content": edit_message_content}]},
+                {"messages": [agent_message]},
                 config=config
             )
             
@@ -459,13 +518,20 @@ class ChatService:
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
     
     @staticmethod
-    def _create_edit_message_with_context(messages: List[Dict[str, Any]], edit_prompt: str) -> str:
+    def _create_edit_message_with_context(
+        messages: List[Dict[str, Any]], 
+        edit_prompt: str,
+        file_name: Optional[str] = None,
+        file_content: Optional[str] = None
+    ) -> str:
         """
         Tạo message với context cho edit request
         
         Args:
             messages: Lịch sử messages từ database
             edit_prompt: Yêu cầu chỉnh sửa từ người dùng
+            file_name: Tên file đính kèm (nếu có)
+            file_content: Nội dung file đính kèm (nếu có)
             
         Returns:
             str: Message đã được format với context
@@ -477,18 +543,33 @@ class ChatService:
             role_label = "👤 NGƯỜI DÙNG" if msg['role'] == 'user' else "🤖 ASSISTANT"
             context_parts.append(f"{role_label}: {msg['content']}\n")
         
+        # Thêm file content nếu có
+        if file_content and file_name:
+            context_parts.extend([
+                "\n" + "="*50,
+                f"\n**FILE ĐÍNH KÈM: {file_name}**",
+                f"\n{file_content}",
+                "\n" + "="*50
+            ])
+        
         # Thêm yêu cầu edit
         context_parts.extend([
             "\n" + "="*50,
             "\n**YÊU CẦU CHỈNH SỬA MỚI:**",
             f"\n{edit_prompt}",
             "\n" + "="*50,
-            "\nHãy dựa vào lịch sử conversation ở trên và yêu cầu chỉnh sửa mới để:",
+            "\nHãy dựa vào lịch sử conversation ở trên" + 
+            (" và file đính kèm" if file_content else "") + 
+            " và yêu cầu chỉnh sửa mới để:",
             "1. Hiểu rõ context và nội dung đã thảo luận trước đó",
-            "2. Thực hiện chỉnh sửa theo yêu cầu mới",
-            "3. Đưa ra kết quả đã được cập nhật/sửa đổi",
-            "4. Giải thích những thay đổi đã thực hiện (nếu cần)",
+            "2. Phân tích file đính kèm (nếu có) để có thêm thông tin" if file_content else "2. Thực hiện chỉnh sửa theo yêu cầu mới",
+            "3. Thực hiện chỉnh sửa theo yêu cầu mới" if file_content else "3. Đưa ra kết quả đã được cập nhật/sửa đổi", 
+            "4. Đưa ra kết quả đã được cập nhật/sửa đổi" if file_content else "4. Giải thích những thay đổi đã thực hiện (nếu cần)",
+            "5. Giải thích những thay đổi đã thực hiện (nếu cần)" if file_content else "",
             "\nVui lòng trả lời bằng tiếng Việt."
         ])
+        
+        # Remove empty strings
+        context_parts = [part for part in context_parts if part.strip()]
         
         return "\n".join(context_parts)

@@ -113,11 +113,34 @@
                         </button>
                     </div> -->
 
-                    <!-- Khung chat tiếp tục cuộc trò chuyện của người dùng -->
-                    <div>
-                        <textarea id="messageInput" placeholder="Nhập tin nhắn..."
-                            style="width: 100%; height: 100px; margin-top: 15px; padding: 10px;"></textarea>
-                        <button class="btn btn-primary" style="margin-top: 10px;" onclick="sendMessage()" id="sendMessageBtn">Gửi</button>
+                    <!-- Custom Message Input với File Attachment -->
+                    <div class="custom-message-input-container" style="margin-top: 15px;">
+                        <!-- Input Area -->
+                        <div class="custom-input-wrapper">
+                            <div class="custom-input-area" id="messageInputArea" contenteditable="true" 
+                                 data-placeholder="Nhập tin nhắn của bạn..."></div>
+                            
+                            <!-- File Attachment Preview -->
+                            <div class="file-attachment-preview" id="fileAttachmentPreview" style="display: none;">
+                                <div class="file-info">
+                                    <span class="file-icon">📎</span>
+                                    <span class="file-name" id="attachedFileName"></span>
+                                    <span class="file-size" id="attachedFileSize"></span>
+                                    <button class="file-remove-btn" onclick="removeFileAttachment()" title="Xóa file">❌</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="input-actions">
+                            <input type="file" id="messageFileInput" accept="image/*,.txt,.md,.json,.xml,.pdf,.doc,.docx" style="display: none;">
+                            <button class="btn btn-secondary" onclick="triggerFileSelect()" id="attachFileBtn">
+                                📎 Đính kèm
+                            </button>
+                            <button class="btn btn-primary" onclick="sendMessage()" id="sendMessageBtn">
+                                🚀 Gửi tin nhắn
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -711,13 +734,77 @@
             // TODO: Implement edit test case functionality
         }
 
+        // File attachment variables
+        let currentAttachedFile = null;
+
+        /**
+         * Trigger file selection
+         */
+        function triggerFileSelect() {
+            const fileInput = document.getElementById('messageFileInput');
+            fileInput.click();
+        }
+
+        /**
+         * Handle file selection
+         */
+        function handleFileSelect() {
+            const fileInput = document.getElementById('messageFileInput');
+            const file = fileInput.files[0];
+            
+            if (file) {
+                currentAttachedFile = file;
+                showFilePreview(file);
+            }
+        }
+
+        /**
+         * Show file preview
+         */
+        function showFilePreview(file) {
+            const preview = document.getElementById('fileAttachmentPreview');
+            const fileName = document.getElementById('attachedFileName');
+            const fileSize = document.getElementById('attachedFileSize');
+            
+            fileName.textContent = file.name;
+            fileSize.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+            preview.style.display = 'block';
+        }
+
+        /**
+         * Remove file attachment
+         */
+        function removeFileAttachment() {
+            const fileInput = document.getElementById('messageFileInput');
+            const preview = document.getElementById('fileAttachmentPreview');
+            
+            currentAttachedFile = null;
+            fileInput.value = '';
+            preview.style.display = 'none';
+        }
+
+        /**
+         * Get message text from custom input
+         */
+        function getMessageText() {
+            const inputArea = document.getElementById('messageInputArea');
+            return inputArea.textContent.trim();
+        }
+
+        /**
+         * Clear message input
+         */
+        function clearMessageInput() {
+            const inputArea = document.getElementById('messageInputArea');
+            inputArea.textContent = '';
+        }
+
         /**
          * Send message (edit request) to AI Agent
          */
         async function sendMessage() {
-            const messageInput = document.getElementById('messageInput');
             const sendBtn = document.getElementById('sendMessageBtn');
-            const prompt = messageInput.value.trim();
+            const prompt = getMessageText();
 
             if (!prompt) {
                 showToast('Vui lòng nhập nội dung tin nhắn', 'warning');
@@ -736,7 +823,7 @@
 
             // Set loading state
             isStreaming = true;
-            setInputLoadingState(true);
+            setCustomInputLoadingState(true);
             updateStatus('connecting', 'Đang kết nối...');
 
             // Update send button
@@ -744,18 +831,26 @@
             sendBtn.innerHTML = '⏳ Đang gửi...';
 
             // Clear input and disable it
-            messageInput.value = '';
-            messageInput.disabled = true;
-            messageInput.placeholder = 'Đang xử lý tin nhắn...';
+            clearMessageInput();
 
             // Add user message to chat with loading indicator
-            addStreamingMessage('user', prompt, true);
+            let displayMessage = prompt;
+            if (currentAttachedFile) {
+                displayMessage += `\n\n📎 Đính kèm: ${currentAttachedFile.name} (${(currentAttachedFile.size / 1024).toFixed(1)} KB)`;
+            }
+            addStreamingMessage('user', displayMessage, true);
 
             // Add typing indicator
             addTypingIndicator();
 
             try {
-                const response = await apiClient.editTestCase(conversationId, prompt);
+                // Prepare API call with file if available
+                let response;
+                if (currentAttachedFile) {
+                    response = await apiClient.editTestCaseWithFile(conversationId, prompt, currentAttachedFile);
+                } else {
+                    response = await apiClient.editTestCase(conversationId, prompt);
+                }
 
                 updateStatus('streaming', 'AI đang trả lời...');
 
@@ -765,6 +860,9 @@
                 // Process streaming response
                 await processStreamingResponse(response);
 
+                // Clear file attachment after successful send and processing
+                removeFileAttachment();
+
             } catch (error) {
                 console.error('Error sending message:', error);
                 updateStatus('error', 'Có lỗi xảy ra');
@@ -773,35 +871,34 @@
             } finally {
                 // Reset UI state
                 isStreaming = false;
-                setInputLoadingState(false);
+                setCustomInputLoadingState(false);
                 updateStatus('idle', 'Sẵn sàng');
 
                 // Reset send button
                 sendBtn.disabled = false;
-                sendBtn.innerHTML = 'Gửi';
-
-                // Reset input
-                messageInput.disabled = false;
-                messageInput.placeholder = 'Nhập tin nhắn...';
-                messageInput.focus();
+                sendBtn.innerHTML = '🚀 Gửi tin nhắn';
             }
         }
 
         /**
-         * Set input loading state
+         * Set custom input loading state
          */
-        function setInputLoadingState(isLoading) {
-            const messageInput = document.getElementById('messageInput');
+        function setCustomInputLoadingState(isLoading) {
+            const inputContainer = document.querySelector('.custom-message-input-container');
+            const inputArea = document.getElementById('messageInputArea');
             const sendBtn = document.getElementById('sendMessageBtn');
+            const attachBtn = document.getElementById('attachFileBtn');
 
             if (isLoading) {
-                messageInput.style.opacity = '0.6';
-                messageInput.style.cursor = 'not-allowed';
-                sendBtn.style.opacity = '0.6';
+                inputContainer.classList.add('loading');
+                inputArea.classList.add('loading');
+                inputArea.contentEditable = false;
+                attachBtn.disabled = true;
             } else {
-                messageInput.style.opacity = '1';
-                messageInput.style.cursor = 'text';
-                sendBtn.style.opacity = '1';
+                inputContainer.classList.remove('loading');
+                inputArea.classList.remove('loading');
+                inputArea.contentEditable = true;
+                attachBtn.disabled = false;
             }
         }
 
@@ -883,15 +980,28 @@
             }
         }
 
-        // Add Enter key support for message input
+        // Add keyboard support and event listeners for custom input
         document.addEventListener('DOMContentLoaded', function() {
-            const messageInput = document.getElementById('messageInput');
-            if (messageInput) {
-                messageInput.addEventListener('keydown', function(e) {
+            // File input event listener
+            const fileInput = document.getElementById('messageFileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', handleFileSelect);
+            }
+
+            // Custom input area keyboard support
+            const messageInputArea = document.getElementById('messageInputArea');
+            if (messageInputArea) {
+                messageInputArea.addEventListener('keydown', function(e) {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         sendMessage();
                     }
+                });
+
+                // Auto-resize handling for contenteditable
+                messageInputArea.addEventListener('input', function() {
+                    // Let CSS handle the max-height with overflow
+                    this.style.height = 'auto';
                 });
             }
         });
