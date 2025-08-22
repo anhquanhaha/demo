@@ -29,30 +29,65 @@
                 </div>
             </div>
             
+            <!-- Main Layout: Left Panel (Tabs) + Right Panel (Chat) -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: 600px;">
-                <!-- Request Info Panel -->
-                <div style="padding: 30px; background: #f8f9fa; border-right: 1px solid #e9ecef;">
-                    <h3 style="margin-bottom: 20px; color: #333;">📋 Thông tin yêu cầu</h3>
-                    
-                    <div id="requestInfo">
-                        <!-- Request info will be loaded here -->
+                <!-- Left Panel: Tab Content -->
+                <div style="background: #f8f9fa; border-right: 1px solid #e9ecef;">
+                    <!-- Tab Navigation -->
+                    <div class="tab-navigation">
+                        <button class="tab-button active" onclick="switchTab('request-info')" id="tab-request-info">
+                            📋 Thông tin yêu cầu
+                        </button>
+                        <button class="tab-button" onclick="switchTab('test-cases')" id="tab-test-cases">
+                            🧪 Test Cases
+                        </button>
                     </div>
-                    
-                    <div style="margin-top: 30px;">
-                        <h4 style="margin-bottom: 15px; color: #333;">📎 Gửi file đính kèm</h4>
-                        <div class="form-group">
-                            <div class="file-input-wrapper">
-                                <div class="file-input">
-                                    <input type="file" id="fileAttachment" accept="image/*,.txt,.md,.json,.xml">
-                                    <span id="fileLabel">📎 Chọn file để tải lên</span>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content-container">
+                        <!-- Tab 1: Request Info -->
+                        <div id="tab-content-request-info" class="tab-content active">
+                            <div style="padding: 30px;">
+                                <h3 style="margin-bottom: 20px; color: #333;">📋 Thông tin yêu cầu</h3>
+                                
+                                <div id="requestInfo">
+                                    <!-- Request info will be loaded here -->
+                                </div>
+                                
+                                <div style="margin-top: 30px;">
+                                    <h4 style="margin-bottom: 15px; color: #333;">📎 Gửi file đính kèm</h4>
+                                    <div class="form-group">
+                                        <div class="file-input-wrapper">
+                                            <div class="file-input">
+                                                <input type="file" id="fileAttachment" accept="image/*,.txt,.md,.json,.xml">
+                                                <span id="fileLabel">📎 Chọn file để tải lên</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Hỗ trợ: Ảnh, Text, Markdown, JSON, XML</small>
                                 </div>
                             </div>
                         </div>
-                        <small class="text-muted">Hỗ trợ: Ảnh, Text, Markdown, JSON, XML</small>
+
+                        <!-- Tab 2: Test Cases -->
+                        <div id="tab-content-test-cases" class="tab-content">
+                            <div style="padding: 30px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                    <h3 style="color: #333;">🧪 Test Cases được tạo bởi AI Agent</h3>
+                                    <button class="btn btn-primary" onclick="refreshTestCases()">
+                                        🔄 Làm mới
+                                    </button>
+                                </div>
+                                
+                                <div id="testCasesContainer">
+                                    <!-- Test cases table will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Chat Panel -->
+                <!-- Right Panel: Chat (Always Visible) -->
                 <div style="padding: 30px; background: #ffffff; display: flex; flex-direction: column;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3 style="color: #333;">💬 Cuộc trò chuyện với AI</h3>
@@ -98,6 +133,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadRequestData();
             setupFileInput();
+            loadTestCases();
         });
 
         /**
@@ -442,6 +478,170 @@
             downloadAsFile(content, filename, 'text/markdown');
             
             showToast('Cuộc trò chuyện đã được xuất', 'success');
+        }
+
+        /**
+         * Switch between tabs
+         */
+        function switchTab(tabName) {
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Remove active class from all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Add active class to selected tab button
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            // Add active class to selected tab content
+            document.getElementById(`tab-content-${tabName}`).classList.add('active');
+        }
+
+        /**
+         * Load test cases (sample data for now)
+         */
+        function loadTestCases() {
+            const sampleTestCases = [
+                {
+                    id: 1,
+                    title: "Kiểm tra đăng nhập với thông tin hợp lệ",
+                    steps: "1. Mở trang đăng nhập\n2. Nhập email hợp lệ\n3. Nhập mật khẩu đúng\n4. Nhấn nút Đăng nhập\n5. Kiểm tra chuyển hướng đến trang chủ",
+                    created_at: "2024-01-15T10:30:00Z",
+                    updated_at: "2024-01-15T10:30:00Z"
+                },
+                {
+                    id: 2,
+                    title: "Kiểm tra đăng nhập với email không hợp lệ",
+                    steps: "1. Mở trang đăng nhập\n2. Nhập email không đúng định dạng\n3. Nhập mật khẩu\n4. Nhấn nút Đăng nhập\n5. Kiểm tra hiển thị thông báo lỗi",
+                    created_at: "2024-01-15T10:35:00Z",
+                    updated_at: "2024-01-15T10:35:00Z"
+                },
+                {
+                    id: 3,
+                    title: "Kiểm tra đăng nhập với mật khẩu sai",
+                    steps: "1. Mở trang đăng nhập\n2. Nhập email hợp lệ\n3. Nhập mật khẩu sai\n4. Nhấn nút Đăng nhập\n5. Kiểm tra hiển thị thông báo lỗi mật khẩu",
+                    created_at: "2024-01-15T10:40:00Z",
+                    updated_at: "2024-01-15T10:40:00Z"
+                },
+                {
+                    id: 4,
+                    title: "Kiểm tra đăng nhập với trường trống",
+                    steps: "1. Mở trang đăng nhập\n2. Để trống email\n3. Để trống mật khẩu\n4. Nhấn nút Đăng nhập\n5. Kiểm tra hiển thị thông báo yêu cầu nhập thông tin",
+                    created_at: "2024-01-15T10:45:00Z",
+                    updated_at: "2024-01-15T10:45:00Z"
+                },
+                {
+                    id: 5,
+                    title: "Kiểm tra chức năng nhớ mật khẩu",
+                    steps: "1. Mở trang đăng nhập\n2. Nhập thông tin hợp lệ\n3. Tích chọn 'Nhớ mật khẩu'\n4. Đăng nhập thành công\n5. Đóng trình duyệt và mở lại\n6. Kiểm tra tự động đăng nhập",
+                    created_at: "2024-01-15T10:50:00Z",
+                    updated_at: "2024-01-15T10:50:00Z"
+                }
+            ];
+            
+            displayTestCases(sampleTestCases);
+        }
+
+        /**
+         * Display test cases in table
+         */
+        function displayTestCases(testCases) {
+            const container = document.getElementById('testCasesContainer');
+            
+            if (testCases.length === 0) {
+                showEmptyState(
+                    container,
+                    'Chưa có Test Case nào',
+                    'AI Agent chưa tạo Test Case cho yêu cầu này',
+                    {
+                        text: '🚀 Gửi cho AI Agent',
+                        onclick: 'sendToAgent()'
+                    }
+                );
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="test-cases-table-wrapper">
+                    <table class="test-cases-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">ID</th>
+                                <th style="width: 300px;">Tiêu đề Test Case</th>
+                                <th>Các bước thực hiện</th>
+                                <th style="width: 150px;">Ngày tạo</th>
+                                <th style="width: 150px;">Cập nhật</th>
+                                <th style="width: 100px;">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${testCases.map(testCase => `
+                                <tr>
+                                    <td class="text-center">${testCase.id}</td>
+                                    <td>
+                                        <div class="test-case-title">${testCase.title}</div>
+                                    </td>
+                                    <td>
+                                        <div class="test-case-steps">
+                                            ${testCase.steps.split('\n').map(step => 
+                                                `<div class="step-item">${step}</div>`
+                                            ).join('')}
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <small>${formatDateTime(testCase.created_at)}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <small>${formatDateTime(testCase.updated_at)}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-secondary" onclick="viewTestCase(${testCase.id})" title="Xem chi tiết">
+                                            👁️
+                                        </button>
+                                        <button class="btn btn-sm btn-primary" onclick="editTestCase(${testCase.id})" title="Chỉnh sửa">
+                                            ✏️
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 20px; text-align: center; color: #666;">
+                    <small>Tổng cộng: ${testCases.length} Test Case(s)</small>
+                </div>
+            `;
+        }
+
+        /**
+         * Refresh test cases
+         */
+        async function refreshTestCases() {
+            // TODO: Replace with actual API call
+            // const testCases = await apiClient.getTestCases(conversationId);
+            loadTestCases();
+            showToast('Test Cases đã được làm mới', 'success');
+        }
+
+        /**
+         * View test case details
+         */
+        function viewTestCase(testCaseId) {
+            showToast(`Xem chi tiết Test Case #${testCaseId}`, 'info');
+            // TODO: Implement view test case modal or navigation
+        }
+
+        /**
+         * Edit test case
+         */
+        function editTestCase(testCaseId) {
+            showToast(`Chỉnh sửa Test Case #${testCaseId}`, 'info');
+            // TODO: Implement edit test case functionality
         }
 
         // Initialize status
