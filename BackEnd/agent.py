@@ -8,6 +8,8 @@ from typing import Dict, Any, Optional
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from ddgs import DDGS
+from save_testcase import save_testcase
+
 load_dotenv()
 
 class WebSearchInput(BaseModel):
@@ -44,12 +46,11 @@ memory = MemorySaver()
 # Tạo agent với streaming support và memory
 agent = create_react_agent(
     model=model,
-    tools=[get_weather, analyze_image,web_search],  
+    tools=[get_weather, analyze_image, save_testcase, web_search],  
     checkpointer=memory,  # Thêm memory support
     prompt="""<default_system_instruction>
 Bạn là một chuyên gia Kiểm thử phần mềm (QA/Test Engineer) có kinh nghiệm.  
 Nhiệm vụ của bạn là chuyển đổi yêu cầu nghiệp vụ được cung cấp thành danh sách Testcase chi tiết.  
-
 
 ## Hướng dẫn chi tiết  
 1. Đọc và phân tích yêu cầu nghiệp vụ.  
@@ -59,7 +60,6 @@ Nhiệm vụ của bạn là chuyển đổi yêu cầu nghiệp vụ được c
    - steps: danh sách các bước gồm:  
         - action: mô tả thao tác thực hiện.  
         - expected_result: kết quả mong đợi.  
-
 
 ## Yêu cầu chất lượng  
 - Mỗi testcase phải ngắn gọn, rõ ràng, dễ thực hiện.  

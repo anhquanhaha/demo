@@ -7,3 +7,4 @@ pydantic==2.11.7
 langchain==0.3.27
 aiohttp==3.9.5
 python-multipart==0.0.6
+ddgs==9.0.0
