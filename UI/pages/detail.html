@@ -1,18 +1,20 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Test Case AI Agent - Chi tiết yêu cầu</title>
     <link rel="stylesheet" href="../css/style.css">
 </head>
+
 <body>
     <div class="container">
         <div class="header">
             <h1>🤖 Test Case AI Agent</h1>
             <p id="headerSubtitle">Chi tiết yêu cầu</p>
         </div>
-        
+
         <div class="main-content">
             <div class="nav-bar">
                 <div class="nav-title">
@@ -28,7 +30,7 @@
                     </button>
                 </div>
             </div>
-            
+
             <!-- Main Layout: Left Panel (Tabs) + Right Panel (Chat) -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: 600px;">
                 <!-- Left Panel: Tab Content -->
@@ -49,17 +51,18 @@
                         <div id="tab-content-request-info" class="tab-content active">
                             <div style="padding: 30px;">
                                 <h3 style="margin-bottom: 20px; color: #333;">📋 Thông tin yêu cầu</h3>
-                                
+
                                 <div id="requestInfo">
                                     <!-- Request info will be loaded here -->
                                 </div>
-                                
+
                                 <div style="margin-top: 30px;">
                                     <h4 style="margin-bottom: 15px; color: #333;">📎 Gửi file đính kèm</h4>
                                     <div class="form-group">
                                         <div class="file-input-wrapper">
                                             <div class="file-input">
-                                                <input type="file" id="fileAttachment" accept="image/*,.txt,.md,.json,.xml">
+                                                <input type="file" id="fileAttachment"
+                                                    accept="image/*,.txt,.md,.json,.xml">
                                                 <span id="fileLabel">📎 Chọn file để tải lên</span>
                                             </div>
                                         </div>
@@ -72,13 +75,14 @@
                         <!-- Tab 2: Test Cases -->
                         <div id="tab-content-test-cases" class="tab-content">
                             <div style="padding: 30px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                                     <h3 style="color: #333;">🧪 Test Cases được tạo bởi AI Agent</h3>
                                     <button class="btn btn-primary" onclick="refreshTestCases()">
                                         🔄 Làm mới
                                     </button>
                                 </div>
-                                
+
                                 <div id="testCasesContainer">
                                     <!-- Test cases table will be loaded here -->
                                 </div>
@@ -86,25 +90,34 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Right Panel: Chat (Always Visible) -->
                 <div style="padding: 30px; background: #ffffff; display: flex; flex-direction: column;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3 style="color: #333;">💬 Cuộc trò chuyện với AI</h3>
                         <div>
                             <span class="status-indicator status-idle" id="statusIndicator"></span>
                             <span id="statusText">Sẵn sàng</span>
                         </div>
                     </div>
-                    
-                    <div id="messagesContainer" style="flex: 1; max-height: 500px; overflow-y: auto; border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; background: #f8f9fa;">
+
+                    <div id="messagesContainer"
+                        style="flex: 1; max-height: 500px; overflow-y: auto; border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; background: #f8f9fa;">
                         <!-- Messages will be loaded here -->
                     </div>
-                    
-                    <div style="margin-top: 15px;">
+
+                    <!-- <div style="margin-top: 15px;">
                         <button class="btn btn-primary w-100" onclick="exportConversation()">
                             📄 Xuất cuộc trò chuyện
                         </button>
+                    </div> -->
+
+                    <!-- Khung chat tiếp tục cuộc trò chuyện của người dùng -->
+                    <div>
+                        <textarea id="messageInput" placeholder="Nhập tin nhắn..."
+                            style="width: 100%; height: 100px; margin-top: 15px; padding: 10px;"></textarea>
+                        <button class="btn btn-primary" style="margin-top: 10px;" onclick="sendMessage()">Gửi</button>
                     </div>
                 </div>
             </div>
@@ -130,7 +143,7 @@
         }
 
         // Load data on page load
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             loadRequestData();
             setupFileInput();
             loadTestCases();
@@ -144,10 +157,10 @@
                 // Load request info
                 currentRequest = await apiClient.getRequest(conversationId);
                 displayRequestInfo(currentRequest);
-                
+
                 // Load messages
                 await loadMessages();
-                
+
             } catch (error) {
                 console.error('Error loading request data:', error);
                 showToast('Có lỗi khi tải dữ liệu: ' + error.message, 'error');
@@ -160,7 +173,7 @@
         function displayRequestInfo(request) {
             document.getElementById('requestTitle').textContent = request.title;
             document.getElementById('headerSubtitle').textContent = `Chi tiết yêu cầu: ${request.title}`;
-            
+
             const requestInfo = document.getElementById('requestInfo');
             requestInfo.innerHTML = `
                 <div class="mb-3">
@@ -220,7 +233,7 @@
          */
         function displayMessages(messages) {
             const container = document.getElementById('messagesContainer');
-            
+
             if (messages.length === 0) {
                 showEmptyState(
                     container,
@@ -259,7 +272,7 @@
             const fileInput = document.getElementById('fileAttachment');
             const fileLabel = document.getElementById('fileLabel');
 
-            fileInput.addEventListener('change', function(e) {
+            fileInput.addEventListener('change', function (e) {
                 const file = e.target.files[0];
                 if (file) {
                     fileLabel.textContent = `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
@@ -285,7 +298,7 @@
 
             isStreaming = true;
             updateStatus('connecting', 'Đang kết nối...');
-            
+
             const sendBtn = document.getElementById('sendToAgentBtn');
             sendBtn.disabled = true;
             sendBtn.innerHTML = '⏳ Đang xử lý...';
@@ -303,7 +316,7 @@
                 );
 
                 updateStatus('streaming', 'Đang nhận dữ liệu...');
-                
+
                 // Clear file input
                 fileInput.value = '';
                 document.getElementById('fileLabel').textContent = '📎 Chọn file để tải lên';
@@ -333,7 +346,7 @@
             try {
                 while (true) {
                     const { value, done } = await reader.read();
-                    
+
                     if (done) {
                         updateStatus('complete', 'Hoàn thành');
                         break;
@@ -341,7 +354,7 @@
 
                     const chunk = decoder.decode(value);
                     const lines = chunk.split('\n');
-                    
+
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             try {
@@ -369,15 +382,15 @@
                 case 'chunk':
                     appendToStreamingMessage(data.content);
                     break;
-                    
+
                 case 'message':
                     addStreamingMessage('assistant', data.content);
                     break;
-                    
+
                 case 'end':
                     updateStatus('complete', 'Hoàn thành');
                     break;
-                    
+
                 case 'error':
                     addStreamingMessage('error', `❌ Lỗi: ${data.message}`);
                     updateStatus('error', 'Có lỗi xảy ra');
@@ -392,7 +405,7 @@
          */
         function addStreamingMessage(role, content) {
             const container = document.getElementById('messagesContainer');
-            
+
             // Remove empty state if exists
             const emptyState = container.querySelector('.empty-state');
             if (emptyState) {
@@ -410,10 +423,10 @@
                 </div>
                 <div class="message-content">${content}</div>
             `;
-            
+
             container.appendChild(messageDiv);
             container.scrollTop = container.scrollHeight;
-            
+
             if (role === 'assistant') {
                 currentStreamingMessage = messageDiv.querySelector('.message-content');
             }
@@ -439,7 +452,7 @@
         function updateStatus(status, message) {
             const indicator = document.getElementById('statusIndicator');
             const text = document.getElementById('statusText');
-            
+
             indicator.className = `status-indicator status-${status}`;
             text.textContent = message;
         }
@@ -476,7 +489,7 @@
 
             const filename = `testcase_${currentRequest.conversation_id}_${new Date().toISOString().split('T')[0]}.md`;
             downloadAsFile(content, filename, 'text/markdown');
-            
+
             showToast('Cuộc trò chuyện đã được xuất', 'success');
         }
 
@@ -488,15 +501,15 @@
             document.querySelectorAll('.tab-button').forEach(btn => {
                 btn.classList.remove('active');
             });
-            
+
             // Remove active class from all tab contents
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
             });
-            
+
             // Add active class to selected tab button
             document.getElementById(`tab-${tabName}`).classList.add('active');
-            
+
             // Add active class to selected tab content
             document.getElementById(`tab-content-${tabName}`).classList.add('active');
         }
@@ -542,7 +555,7 @@
                     updated_at: "2024-01-15T10:50:00Z"
                 }
             ];
-            
+
             displayTestCases(sampleTestCases);
         }
 
@@ -551,7 +564,7 @@
          */
         function displayTestCases(testCases) {
             const container = document.getElementById('testCasesContainer');
-            
+
             if (testCases.length === 0) {
                 showEmptyState(
                     container,
@@ -587,9 +600,9 @@
                                     </td>
                                     <td>
                                         <div class="test-case-steps">
-                                            ${testCase.steps.split('\n').map(step => 
-                                                `<div class="step-item">${step}</div>`
-                                            ).join('')}
+                                            ${testCase.steps.split('\n').map(step =>
+                `<div class="step-item">${step}</div>`
+            ).join('')}
                                         </div>
                                     </td>
                                     <td class="text-center">
@@ -648,4 +661,5 @@
         updateStatus('idle', 'Sẵn sàng');
     </script>
 </body>
+
 </html>
